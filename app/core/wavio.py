@@ -20,7 +20,6 @@ def read_wav(path) -> AudioSignal:
     fmt = None
     raw = None
     pos = 12
-    # Walk chunks: each is 4-byte id, 4-byte little-endian size, payload (padded to even size)
     while pos + 8 <= len(data):
         cid = data[pos:pos + 4]
         size = struct.unpack_from("<I", data, pos + 4)[0]
@@ -28,7 +27,6 @@ def read_wav(path) -> AudioSignal:
         if cid == b"fmt ":
             fmt_tag, channels, rate, _byte_rate, block_align, bits = struct.unpack_from("<HHIIHH", data, body)
             if fmt_tag == WAVE_FORMAT_EXTENSIBLE and size >= 40:
-                # Real format code is in the first 2 bytes of the SubFormat GUID
                 fmt_tag = struct.unpack_from("<H", data, body + 24)[0]
             fmt = (fmt_tag, channels, rate, block_align, bits)
         elif cid == b"data":
@@ -48,7 +46,6 @@ def read_wav(path) -> AudioSignal:
         elif bytes_per_sample == 2:
             samples = np.frombuffer(raw, dtype="<i2")
         elif bytes_per_sample == 3:
-            # Pack 3 little-endian bytes into the top of an int32, then arithmetic shift keeps the sign
             b = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 3).astype(np.int32)
             samples = ((b[:, 0] << 8) | (b[:, 1] << 16) | (b[:, 2] << 24)) >> 8
         elif bytes_per_sample == 4:
