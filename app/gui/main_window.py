@@ -6,6 +6,7 @@ from PySide6 import QtWidgets
 from ..core.signal import AudioSignal
 from ..core.wavio import read_wav, write_wav
 from .signal_plot import SignalPlot
+from .snr_window import SnrWindow
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -14,6 +15,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Garso signalų atvaizdavimas")
         self.resize(1200, 800)
         self.signal: AudioSignal | None = None
+        self.snr_window: SnrWindow | None = None
 
         self.plot = SignalPlot()
         self.plot.regionChanged.connect(self._on_plot_region)
@@ -36,6 +38,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.save_btn.clicked.connect(self.save_segment)
         open_btn = QtWidgets.QPushButton("Open WAV…")
         open_btn.clicked.connect(self.open_file)
+        self.snr_btn = QtWidgets.QPushButton("Segmental SNR…")
+        self.snr_btn.clicked.connect(self.open_snr)
 
         bar = QtWidgets.QHBoxLayout()
         bar.addWidget(open_btn)
@@ -48,6 +52,8 @@ class MainWindow(QtWidgets.QMainWindow):
         bar.addWidget(zoom_seg)
         bar.addWidget(zoom_all)
         bar.addWidget(self.save_btn)
+        bar.addSpacing(20)
+        bar.addWidget(self.snr_btn)
         bar.addStretch()
 
         central = QtWidgets.QWidget()
@@ -62,9 +68,11 @@ class MainWindow(QtWidgets.QMainWindow):
         menu.addAction("&Save segment…", self.save_segment, "Ctrl+S")
         menu.addSeparator()
         menu.addAction("&Quit", self.close, "Ctrl+Q")
+        analysis = self.menuBar().addMenu("&Analysis")
+        analysis.addAction("Segmental &SNR…", self.open_snr, "Ctrl+R")
 
     def _set_controls_enabled(self, on: bool):
-        for w in (self.start_box, self.dur_box, self.save_btn):
+        for w in (self.start_box, self.dur_box, self.save_btn, self.snr_btn):
             w.setEnabled(on)
 
     def open_file(self):
@@ -97,6 +105,9 @@ class MainWindow(QtWidgets.QMainWindow):
             box.blockSignals(False)
         self._on_boxes_changed()
         self._set_controls_enabled(True)
+        if self.snr_window:
+            self.snr_window.set_signal(sig)
+            self.snr_window.set_selection(*self._segment_bounds())
         self.setWindowTitle(f"Garso signalų atvaizdavimas — {sig.name}")
         self.statusBar().showMessage(
             f"{sig.n_samples:,} samples × {sig.n_channels} ch, {sig.duration:.3f} s  |  "
@@ -111,6 +122,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_boxes_changed(self):
         if self.signal:
             self.plot.set_region(*self._segment_bounds())
+            if self.snr_window:
+                self.snr_window.set_selection(*self._segment_bounds())
 
     def _on_plot_region(self, start_s: float, end_s: float):
         scale = self.plot.scale
@@ -118,6 +131,19 @@ class MainWindow(QtWidgets.QMainWindow):
             box.blockSignals(True)
             box.setValue(val)
             box.blockSignals(False)
+        if self.snr_window:
+            self.snr_window.set_selection(start_s, end_s)
+
+    def open_snr(self):
+        if not self.signal:
+            return
+        if self.snr_window is None:
+            self.snr_window = SnrWindow(self)
+            self.snr_window.set_signal(self.signal)
+            self.snr_window.set_selection(*self._segment_bounds())
+        self.snr_window.show()
+        self.snr_window.raise_()
+        self.snr_window.activateWindow()
 
     def save_segment(self):
         if not self.signal:
