@@ -8,12 +8,10 @@ from ..core.signal import AudioSignal
 from ..core.timefmt import choose_time_unit
 from .signal_plot import CHANNEL_NAMES
 
-SWEEP_WEIGHTS = np.logspace(-3, 2, 101)  # noise weights for the SNR(k) plot: +60 dB … -40 dB
+SWEEP_WEIGHTS = np.logspace(-3, 2, 101)
 
 
 class SnrWindow(QtWidgets.QWidget):
-    """Segmental SNR analysis (UZD_02 task 6): signal + k * generated noise, overall vs segmental SNR."""
-
     def __init__(self, parent=None):
         super().__init__(parent, QtCore.Qt.Window)
         self.setWindowTitle("Segmentinė SST analizė")
@@ -22,7 +20,7 @@ class SnrWindow(QtWidgets.QWidget):
         self.selection = (0.0, 0.0)
         self._noise_key = None
         self._unit_noise = None
-        self.overall: float | None = None  # last results, for inspection and tests
+        self.overall: float | None = None
         self.segmental = None
 
         self.channel_box = QtWidgets.QComboBox()
@@ -33,7 +31,6 @@ class SnrWindow(QtWidgets.QWidget):
         self.seed_box = QtWidgets.QSpinBox(minimum=0, maximum=2 ** 31 - 1, value=0)
         self.segment_box = QtWidgets.QCheckBox("Selected segment only")
 
-        # Recompute shortly after the last change, so dragging a spin box or the selection stays smooth
         self._timer = QtCore.QTimer(self, singleShot=True, interval=100)
         self._timer.timeout.connect(self.recompute)
         for sig in (self.channel_box.currentIndexChanged, self.weight_box.valueChanged, self.frame_box.valueChanged,
@@ -78,7 +75,7 @@ class SnrWindow(QtWidgets.QWidget):
             p.setDownsampling(auto=True, mode="peak")
             if p is not self.p_clean:
                 p.setXLink(self.p_clean)
-                p.setYLink(self.p_clean)  # same amplitude scale, so the noise level is comparable
+                p.setYLink(self.p_clean)
         self.c_clean = self.p_clean.plot(pen=pg.mkPen((30, 110, 200), width=1))
         self.c_noise = self.p_noise.plot(pen=pg.mkPen((200, 80, 40), width=1))
         self.c_noisy = self.p_noisy.plot(pen=pg.mkPen((90, 90, 90), width=1))
@@ -123,7 +120,6 @@ class SnrWindow(QtWidgets.QWidget):
             self._timer.start()
 
     def _analysed(self) -> tuple[np.ndarray, float]:
-        """Analysed samples of the chosen channel and their start time in seconds."""
         ch = max(0, self.channel_box.currentIndex())
         if self.segment_box.isChecked():
             start, end = self.selection
@@ -132,7 +128,6 @@ class SnrWindow(QtWidgets.QWidget):
         return channel_as_float(self.signal, ch), 0.0
 
     def _noise(self, x: np.ndarray) -> np.ndarray:
-        """Generated noise with the signal's RMS; regenerated only when its inputs change."""
         key = (len(x), self.seed_box.value(), self.channel_box.currentIndex(), self.segment_box.isChecked(),
                self.selection if self.segment_box.isChecked() else None)
         if key != self._noise_key:
