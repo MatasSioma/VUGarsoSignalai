@@ -63,7 +63,7 @@ def read_wav(path) -> AudioSignal:
     return AudioSignal(samples, rate, bits, kind, path.name)
 
 
-def write_wav(path, sig: AudioSignal) -> None:
+def wav_bytes(sig: AudioSignal) -> bytes:
     ch, rate, bits = sig.n_channels, sig.sample_rate, sig.bits
     bps = (bits + 7) // 8
     block_align = ch * bps
@@ -95,5 +95,8 @@ def write_wav(path, sig: AudioSignal) -> None:
     pad = b"\x00" if len(raw) & 1 else b""
     chunks = b"fmt " + struct.pack("<I", len(fmt_body)) + fmt_body
     chunks += b"data" + struct.pack("<I", len(raw)) + raw + pad
-    with open(path, "wb") as f:
-        f.write(b"RIFF" + struct.pack("<I", 4 + len(chunks)) + b"WAVE" + chunks)
+    return b"RIFF" + struct.pack("<I", 4 + len(chunks)) + b"WAVE" + chunks
+
+
+def write_wav(path, sig: AudioSignal) -> None:
+    Path(path).write_bytes(wav_bytes(sig))

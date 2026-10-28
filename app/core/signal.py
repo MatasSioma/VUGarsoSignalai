@@ -40,7 +40,28 @@ class AudioSignal:
     def time_axis(self) -> np.ndarray:
         return np.arange(self.n_samples) / self.sample_rate
 
-    def segment(self, start_s: float, duration_s: float) -> "AudioSignal":
-        a = max(0, int(round(start_s * self.sample_rate)))
-        b = min(self.n_samples, a + int(round(duration_s * self.sample_rate)))
-        return AudioSignal(self.samples[a:b].copy(), self.sample_rate, self.bits, self.fmt, self.name)
+
+def to_float(sig: AudioSignal) -> np.ndarray:
+    """Samples as float64 normalised to [-1, 1], shape (n_samples, n_channels)."""
+    x = sig.samples.astype(np.float64)
+    if sig.fmt == "float":
+        return x
+    if sig.bits == 8:
+        return (x - 128) / 128
+    return x / 2 ** (sig.bits - 1)
+
+
+def from_float(x: np.ndarray, like: AudioSignal, name: str = "") -> AudioSignal:
+    """Convert normalised float samples back to the bit depth and format of `like`, clipping to [-1, 1]."""
+    x = np.asarray(x, dtype=np.float64)
+    if x.ndim == 1:
+        x = x[:, None]
+    x = np.clip(x, -1.0, 1.0)
+    if like.fmt == "float":
+        samples = x.astype(like.samples.dtype)
+    elif like.bits == 8:
+        samples = np.clip(np.round(x * 128 + 128), 0, 255).astype(np.uint8)
+    else:
+        full = 2 ** (like.bits - 1)
+        samples = np.clip(np.round(x * full), -full, full - 1).astype(np.int16 if like.bits <= 16 else np.int32)
+    return AudioSignal(samples, like.sample_rate, like.bits, like.fmt, name or like.name)
